@@ -74,8 +74,10 @@ class SplashScreenActiviy : AppCompatActivity() {
 
                 override fun onDataChange(snapshot: DataSnapshot) {
                     if (snapshot.exists()){
-                        val riderModel: RiderModel = snapshot.value as RiderModel
-                        goToHomeActivity(riderModel)
+                        val riderModel = snapshot.getValue(RiderModel::class.java)
+                        if (riderModel != null) {
+                            goToHomeActivity(riderModel)
+                        }
                     } else {
                         showRegisterLayout()
                     }
