@@ -18,6 +18,7 @@ class Common {
     companion object {
         const val TOKEN_REFERENCE = "Token"
         const val RIDER_INFO_REFERENCE = "Riders"
+        const val DRIVERS_LOCATION_REFERENCES = "DriversLocation" //Same as driver
         lateinit var currentRider: RiderModel
 
         const val NOTI_TITLE = "title"

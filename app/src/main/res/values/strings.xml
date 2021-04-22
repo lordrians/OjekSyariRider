@@ -37,4 +37,5 @@
     <string name="upload">Upload</string>
     <string name="uploading">Uploading...</string>
     <string name="title_activity_home">HomeActivity</string>
+    <string name="permissoin_location_require">Location Permission Require</string>
 </resources>
