@@ -11,7 +11,9 @@ import android.graphics.Color
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import com.example.ojeksyaririder.R
+import com.example.ojeksyaririder.model.DriverGeoModel
 import com.example.ojeksyaririder.model.RiderModel
+import com.google.android.gms.maps.model.Marker
 
 class Common {
 
@@ -19,6 +21,11 @@ class Common {
         const val TOKEN_REFERENCE = "Token"
         const val RIDER_INFO_REFERENCE = "Riders"
         const val DRIVERS_LOCATION_REFERENCES = "DriversLocation" //Same as driver
+        const val DRIVER_INFO_REFERENCE = "DriverInfo"
+
+        var driversFound: HashSet<DriverGeoModel> = HashSet()
+        var markerList: HashMap<String, Marker> = HashMap()
+
         lateinit var currentRider: RiderModel
 
         const val NOTI_TITLE = "title"

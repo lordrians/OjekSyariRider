@@ -38,4 +38,6 @@
     <string name="uploading">Uploading...</string>
     <string name="title_activity_home">HomeActivity</string>
     <string name="permissoin_location_require">Location Permission Require</string>
+    <string name="drivers_not_found">Drivers not found</string>
+    <string name="not_found_driver_key">Not found driver with key</string>
 </resources>

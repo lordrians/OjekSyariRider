@@ -1,9 +1,10 @@
 package com.example.ojeksyaririder.model
 
 class DriverInfoModel (
-    private var firstName: String,
-    private var lastName: String,
-    private var phoneNumber: String,
-    private var avatar: String,
-    private var rating: Double
-)
+){
+    lateinit var firstName: String
+    lateinit var lastName: String
+    lateinit var phoneNumber: String
+    lateinit var avatar: String
+    var rating: Double = 0.0
+}

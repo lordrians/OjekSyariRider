@@ -1,6 +1,7 @@
 package com.example.ojeksyaririder.ui.home
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.content.pm.PackageManager
 import android.content.res.Resources
 import android.location.Address
@@ -23,6 +24,8 @@ import com.example.ojeksyaririder.R
 import com.example.ojeksyaririder.callback.IFirebaseDriverInfoListener
 import com.example.ojeksyaririder.callback.IFirebaseFailedListener
 import com.example.ojeksyaririder.databinding.FragmentHomeBinding
+import com.example.ojeksyaririder.model.DriverGeoModel
+import com.example.ojeksyaririder.model.DriverInfoModel
 import com.example.ojeksyaririder.utils.Common
 import com.firebase.geofire.GeoFire
 import com.firebase.geofire.GeoLocation
@@ -35,19 +38,27 @@ import com.google.android.gms.maps.OnMapReadyCallback
 import com.google.android.gms.maps.SupportMapFragment
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.MapStyleOptions
+import com.google.android.gms.maps.model.MarkerOptions
 import com.google.android.material.snackbar.Snackbar
+import com.google.firebase.database.DataSnapshot
 import com.google.firebase.database.DatabaseError
 import com.google.firebase.database.FirebaseDatabase
+import com.google.firebase.database.ValueEventListener
 import com.karumi.dexter.Dexter
 import com.karumi.dexter.PermissionToken
 import com.karumi.dexter.listener.PermissionDeniedResponse
 import com.karumi.dexter.listener.PermissionGrantedResponse
 import com.karumi.dexter.listener.PermissionRequest
 import com.karumi.dexter.listener.single.PermissionListener
+import io.reactivex.Observable
+import io.reactivex.android.schedulers.AndroidSchedulers
+import io.reactivex.schedulers.Schedulers
 import java.io.IOException
 import java.util.*
+import kotlin.collections.HashSet
 
-class HomeFragment : Fragment(), OnMapReadyCallback {
+class HomeFragment : Fragment(), OnMapReadyCallback, IFirebaseDriverInfoListener,
+    IFirebaseFailedListener {
 
     private lateinit var homeViewModel: HomeViewModel
     private lateinit var binding: FragmentHomeBinding
@@ -274,11 +285,17 @@ class HomeFragment : Fragment(), OnMapReadyCallback {
 
                     geoQuery.addGeoQueryEventListener(object: GeoQueryEventListener{
                         override fun onGeoQueryReady() {
-                            TODO("Not yet implemented")
+                            if (distance <= LIMIT_RANGE){
+                                distance++
+                                loadAvailableDrivers() //Continue search in new distance
+                            } else {
+                                distance = 1.0 // reset it
+                                addDriverMarker()
+                            }
                         }
 
-                        override fun onKeyEntered(key: String?, location: GeoLocation?) {
-                            Common.driversFound.
+                        override fun onKeyEntered(key: String, location: GeoLocation) {
+                            Common.driversFound.add(DriverGeoModel(key, location, null ))
                         }
 
                         override fun onKeyMoved(key: String?, location: GeoLocation?) {
@@ -289,8 +306,8 @@ class HomeFragment : Fragment(), OnMapReadyCallback {
                             TODO("Not yet implemented")
                         }
 
-                        override fun onGeoQueryError(error: DatabaseError?) {
-                            TODO("Not yet implemented")
+                        override fun onGeoQueryError(error: DatabaseError) {
+                            view?.let { Snackbar.make(it, error.message, Snackbar.LENGTH_LONG).show() }
                         }
 
                     })
@@ -301,5 +318,56 @@ class HomeFragment : Fragment(), OnMapReadyCallback {
                     view?.let { Snackbar.make(it, e.message.toString(), Snackbar.LENGTH_SHORT).show() }
                 }
             }
+    }
+
+    @SuppressLint("CheckResult")
+    private fun addDriverMarker() {
+        if (Common.driversFound.size > 0){
+            Observable.fromIterable(Common.driversFound)
+                .subscribeOn(Schedulers.newThread())
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe { driverGeoModel ->
+                    findDriverByKey(driverGeoModel)
+                }
+        } else {
+            view?.let { Snackbar.make(it, resources.getString(R.string.drivers_not_found), Snackbar.LENGTH_SHORT).show() }
+        }
+    }
+
+    private fun findDriverByKey(driverGeoModel: DriverGeoModel?) {
+        driverGeoModel?.getKey()?.let {
+            FirebaseDatabase.getInstance()
+                .getReference(Common.DRIVER_INFO_REFERENCE)
+                .child(it)
+                .addListenerForSingleValueEvent(object : ValueEventListener{
+                    override fun onCancelled(error: DatabaseError) {
+                        iFirebaseFailedListener.onFirebaseLoadFailed(error.message)
+                    }
+
+                    override fun onDataChange(snapshot: DataSnapshot) {
+                        if (snapshot.hasChildren()){
+                            driverGeoModel.setDriverInfoModel(snapshot.getValue(DriverInfoModel::class.java)!!)
+                            iFirebaseDriverInfoListener.onDriverInfoLoadSuccess(driverGeoModel)
+                        } else {
+                            iFirebaseFailedListener.onFirebaseLoadFailed(resources.getString(R.string.not_found_driver_key) + driverGeoModel.getKey())
+                        }
+                    }
+                })
+        }
+    }
+
+    override fun onDriverInfoLoadSuccess(driverGeoModel: DriverGeoModel) {
+        //If already have marker with this key, doesn't set again
+        if (!Common.markerList.containsKey(driverGeoModel.getKey())){
+            Common.markerList.put(driverGeoModel.getKey(),
+            mMap.addMarker(MarkerOptions()
+                .position(LatLng(driverGeoModel.getGeoLocation().latitude, driverGeoModel.getGeoLocation().longitude))
+                .flat(true)
+                .title(Common.buildName(driverGeoModel.getDriverinfoModel().f))))
+        }
+    }
+
+    override fun onFirebaseLoadFailed(message: String) {
+        view?.let { Snackbar.make(it, message, Snackbar.LENGTH_SHORT).show() }
     }
 }
