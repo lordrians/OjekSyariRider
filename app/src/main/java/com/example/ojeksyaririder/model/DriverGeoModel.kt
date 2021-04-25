@@ -3,15 +3,17 @@ package com.example.ojeksyaririder.model
 import com.firebase.geofire.GeoLocation
 
 class DriverGeoModel (
-        private var key: String,
-        private var geoLocation: GeoLocation,
-        private var driverInfoModel: DriverInfoModel?
+
 ){
+    private lateinit var key: String
+    private lateinit var geoLocation: GeoLocation
+    private var driverInfoModel: DriverInfoModel? = null
+
     fun DriverGeoModel(){
 
     }
 
-    fun DriverGeoModels(key: String, geoLocation: GeoLocation){
+    constructor(key: String, geoLocation: GeoLocation): this(){
         this.key = key
         this.geoLocation = geoLocation
     }

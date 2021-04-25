@@ -9,6 +9,7 @@ import android.location.Geocoder
 import android.location.Location
 import android.os.Bundle
 import android.os.Looper
+import android.text.TextUtils
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
@@ -26,6 +27,7 @@ import com.example.ojeksyaririder.callback.IFirebaseFailedListener
 import com.example.ojeksyaririder.databinding.FragmentHomeBinding
 import com.example.ojeksyaririder.model.DriverGeoModel
 import com.example.ojeksyaririder.model.DriverInfoModel
+import com.example.ojeksyaririder.model.GeoQueryModel
 import com.example.ojeksyaririder.utils.Common
 import com.firebase.geofire.GeoFire
 import com.firebase.geofire.GeoLocation
@@ -36,14 +38,12 @@ import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.OnMapReadyCallback
 import com.google.android.gms.maps.SupportMapFragment
+import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.MapStyleOptions
 import com.google.android.gms.maps.model.MarkerOptions
 import com.google.android.material.snackbar.Snackbar
-import com.google.firebase.database.DataSnapshot
-import com.google.firebase.database.DatabaseError
-import com.google.firebase.database.FirebaseDatabase
-import com.google.firebase.database.ValueEventListener
+import com.google.firebase.database.*
 import com.karumi.dexter.Dexter
 import com.karumi.dexter.PermissionToken
 import com.karumi.dexter.listener.PermissionDeniedResponse
@@ -164,6 +164,7 @@ class HomeFragment : Fragment(), OnMapReadyCallback, IFirebaseDriverInfoListener
         }
         fusedLocationProviderClient.requestLocationUpdates(locationRequest, locationCallback, Looper.myLooper())
 
+        loadAvailableDrivers()
     }
 
     override fun onMapReady(googleMap: GoogleMap) {
@@ -173,6 +174,7 @@ class HomeFragment : Fragment(), OnMapReadyCallback, IFirebaseDriverInfoListener
             .withPermission(Manifest.permission.ACCESS_FINE_LOCATION)
             .withListener(object : PermissionListener, GoogleMap.OnMyLocationClickListener,
                 GoogleMap.OnMyLocationButtonClickListener {
+                @SuppressLint("ResourceType")
                 override fun onPermissionGranted(p0: PermissionGrantedResponse?) {
                     if (ActivityCompat.checkSelfPermission(
                             requireContext(),
@@ -187,6 +189,7 @@ class HomeFragment : Fragment(), OnMapReadyCallback, IFirebaseDriverInfoListener
 
                     mMap.isMyLocationEnabled = true
                     mMap.uiSettings.isMyLocationButtonEnabled = true
+                    mMap.uiSettings.isZoomControlsEnabled = true
                     mMap.setOnMyLocationButtonClickListener(this)
                     mMap.setOnMyLocationClickListener(this)
 
@@ -197,6 +200,13 @@ class HomeFragment : Fragment(), OnMapReadyCallback, IFirebaseDriverInfoListener
                     params.addRule(RelativeLayout.ALIGN_PARENT_TOP,0)
                     params.addRule(RelativeLayout.ALIGN_PARENT_BOTTOM, RelativeLayout.TRUE)
                     params.setMargins(0,0,0,50)
+
+                    //Control Zoom Position
+                    val zoomControl: View? = mapFragment.view?.findViewById(0x1)
+                    val paramsZoom: RelativeLayout.LayoutParams = zoomControl?.layoutParams as RelativeLayout.LayoutParams
+                    paramsZoom.addRule(RelativeLayout.ALIGN_PARENT_TOP,0)
+                    paramsZoom.addRule(RelativeLayout.ALIGN_PARENT_BOTTOM, RelativeLayout.TRUE)
+                    paramsZoom.setMargins(0,0,0,170)
                 }
 
                 override fun onPermissionRationaleShouldBeShown(
@@ -275,11 +285,11 @@ class HomeFragment : Fragment(), OnMapReadyCallback, IFirebaseDriverInfoListener
                     cityName = addressList.get(0).locality
 
                     //Query
-                    var driver_location_ref = FirebaseDatabase.getInstance()
+                    var driverLocationRef = FirebaseDatabase.getInstance()
                         .getReference(Common.DRIVERS_LOCATION_REFERENCES)
                         .child(cityName)
 
-                    val geoFire: GeoFire = GeoFire(driver_location_ref)
+                    val geoFire: GeoFire = GeoFire(driverLocationRef)
                     val geoQuery: GeoQuery = geoFire.queryAtLocation(GeoLocation(location.latitude, location.longitude), distance )
                     geoQuery.removeAllListeners()
 
@@ -295,7 +305,7 @@ class HomeFragment : Fragment(), OnMapReadyCallback, IFirebaseDriverInfoListener
                         }
 
                         override fun onKeyEntered(key: String, location: GeoLocation) {
-                            Common.driversFound.add(DriverGeoModel(key, location, null ))
+                            Common.driversFound.add(DriverGeoModel(key, location))
                         }
 
                         override fun onKeyMoved(key: String?, location: GeoLocation?) {
@@ -303,7 +313,7 @@ class HomeFragment : Fragment(), OnMapReadyCallback, IFirebaseDriverInfoListener
                         }
 
                         override fun onKeyExited(key: String?) {
-                            TODO("Not yet implemented")
+                            Log.d("ONCHILDREMOVED", key.toString())
                         }
 
                         override fun onGeoQueryError(error: DatabaseError) {
@@ -312,6 +322,44 @@ class HomeFragment : Fragment(), OnMapReadyCallback, IFirebaseDriverInfoListener
 
                     })
 
+                    driverLocationRef.addChildEventListener(object: ChildEventListener{
+                        override fun onCancelled(error: DatabaseError) {
+                            TODO("Not yet implemented")
+                        }
+
+                        override fun onChildMoved(
+                            snapshot: DataSnapshot,
+                            previousChildName: String?
+                        ) {
+                            TODO("Not yet implemented")
+                        }
+
+                        override fun onChildChanged(
+                            snapshot: DataSnapshot,
+                            previousChildName: String?
+                        ) {
+                            TODO("Not yet implemented")
+                        }
+
+                        override fun onChildAdded(
+                            snapshot: DataSnapshot,
+                            previousChildName: String?
+                        ) {
+                            val geoQueryModel: GeoQueryModel? = snapshot.getValue(GeoQueryModel::class.java)
+                            val geoLocation = GeoLocation(geoQueryModel!!.l[0],geoQueryModel.l[1])
+                            val driverGeoModel = DriverGeoModel(snapshot.key!!, geoLocation)
+                            var newDriverLocation = Location("")
+                            newDriverLocation.latitude = geoLocation.latitude
+                            newDriverLocation.longitude = geoLocation.longitude
+                            var newDistance = location.distanceTo(newDriverLocation) / 1000
+                            if (newDistance <= LIMIT_RANGE)
+                                findDriverByKey(driverGeoModel) // if driver in range , add to map
+
+                        }
+
+                        override fun onChildRemoved(snapshot: DataSnapshot) {
+                        }
+                    })
 
                 } catch (e: IOException){
                     e.printStackTrace()
@@ -363,8 +411,34 @@ class HomeFragment : Fragment(), OnMapReadyCallback, IFirebaseDriverInfoListener
             mMap.addMarker(MarkerOptions()
                 .position(LatLng(driverGeoModel.getGeoLocation().latitude, driverGeoModel.getGeoLocation().longitude))
                 .flat(true)
-                .title(Common.buildName(driverGeoModel.getDriverinfoModel().f))))
+                .title(Common.buildName(driverGeoModel.getDriverinfoModel()?.firstName,
+                driverGeoModel.getDriverinfoModel()?.lastName))
+                .snippet(driverGeoModel.getDriverinfoModel()?.phoneNumber)
+                .icon(BitmapDescriptorFactory.fromResource(R.drawable.car))))
         }
+
+        if (!TextUtils.isEmpty(cityName)){
+            val driverLocation = FirebaseDatabase.getInstance()
+                .getReference(Common.DRIVERS_LOCATION_REFERENCES)
+                .child(cityName)
+                .child(driverGeoModel.getKey())
+            driverLocation.addValueEventListener(object: ValueEventListener{
+                override fun onCancelled(error: DatabaseError) {
+                    view?.let { Snackbar.make(it, error.message, Snackbar.LENGTH_SHORT).show() }
+                }
+
+                override fun onDataChange(snapshot: DataSnapshot) {
+                    if (!snapshot.hasChildren()){
+                        if (Common.markerList.get(driverGeoModel.getKey()) != null){
+                            Common.markerList.get(driverGeoModel.getKey())!!.remove() // remove marker
+                        }
+                        Common.markerList.remove(driverGeoModel.getKey()) // Remove marker info from hash map
+                        driverLocation.removeEventListener(this)
+                    }
+                }
+            })
+        }
+
     }
 
     override fun onFirebaseLoadFailed(message: String) {

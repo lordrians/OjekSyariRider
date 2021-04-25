@@ -31,6 +31,10 @@ class Common {
         const val NOTI_TITLE = "title"
         const val NOTI_CONTENT = "body"
 
+        fun buildName(firstname: String?, lastName: String?): String? {
+            return StringBuilder(firstname).append(" ").append(lastName).toString()
+        }
+
         fun buildWelcomeMessage(): String? {
             if (currentRider != null){
                 return StringBuilder("Welcome ")
