@@ -53,6 +53,7 @@ dependencies {
     implementation 'androidx.navigation:navigation-ui-ktx:2.3.5'
     implementation 'com.google.android.gms:play-services-maps:17.0.0'
     implementation 'com.google.firebase:firebase-storage:19.2.2'
+    implementation 'com.google.firebase:firebase-messaging:21.1.0'
     testImplementation 'junit:junit:4.+'
     androidTestImplementation 'androidx.test.ext:junit:1.1.2'
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.3.0'
@@ -69,6 +70,9 @@ dependencies {
 
     //location
     implementation 'com.google.android.gms:play-services-location:18.0.0'
+
+    //GeoFire
+    implementation 'com.firebase:geofire-android:3.1.0'
 
     //CircleImage
     implementation 'de.hdodenhof:circleimageview:3.1.0'

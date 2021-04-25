@@ -6,18 +6,21 @@ import android.content.Intent
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.text.TextUtils
+import android.util.Log
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import com.example.ojeksyaririder.databinding.ActivitySplashScreenBinding
 import com.example.ojeksyaririder.databinding.LayoutRegisterBinding
 import com.example.ojeksyaririder.model.RiderModel
 import com.example.ojeksyaririder.utils.Common
+import com.example.ojeksyaririder.utils.UserUtils
 import com.firebase.ui.auth.AuthMethodPickerLayout
 import com.firebase.ui.auth.AuthUI
 import com.firebase.ui.auth.IdpResponse
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseUser
 import com.google.firebase.database.*
+import com.google.firebase.iid.FirebaseInstanceId
 import io.reactivex.Completable
 import io.reactivex.android.schedulers.AndroidSchedulers
 import java.util.concurrent.TimeUnit
@@ -58,6 +61,16 @@ class SplashScreenActiviy : AppCompatActivity() {
         listener = FirebaseAuth.AuthStateListener { myFirebaseAuth ->
             var user: FirebaseUser? = myFirebaseAuth.currentUser
             if (user != null){
+                FirebaseInstanceId.getInstance()
+                        .instanceId
+                        .addOnFailureListener { e ->
+                            Toast.makeText(applicationContext, e.message.toString(), Toast.LENGTH_SHORT).show()
+                        }
+                        .addOnSuccessListener { instanceIdResult ->
+                            Log.d("TOKEN", instanceIdResult.token)
+                            UserUtils.updateToken(applicationContext, instanceIdResult.token)
+                        }
+
                 checkUserFromFirebase()
             } else {
                 showLoginLayout()
