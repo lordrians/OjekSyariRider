@@ -14,6 +14,7 @@ import com.example.ojeksyaririder.R
 import com.example.ojeksyaririder.model.AnimationModel
 import com.example.ojeksyaririder.model.DriverGeoModel
 import com.example.ojeksyaririder.model.RiderModel
+import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.Marker
 
 class Common {
@@ -32,6 +33,58 @@ class Common {
 
         const val NOTI_TITLE = "title"
         const val NOTI_CONTENT = "body"
+
+        fun getBearing(begin: LatLng, end: LatLng): Float{
+            val lat = Math.abs(begin.latitude - end.latitude)
+            val lng = Math.abs(begin.longitude - end.longitude)
+            if (begin.latitude < end.latitude && begin.longitude < end.longitude)
+                return (Math.toDegrees(Math.atan(lng / lat))).toFloat()
+            else if (begin.latitude >= end.latitude && begin.longitude < end.longitude)
+                return ((90 - Math.toDegrees(Math.atan(lng / lat))) + 90).toFloat()
+            else if (begin.latitude >= end.latitude && begin.longitude >= end.longitude)
+                return (Math.toDegrees(Math.atan(lng / lat)) + 180).toFloat()
+            else if (begin.latitude < end.latitude && begin.longitude >= end.longitude)
+                return ((90 - Math.toDegrees(Math.atan(lng / lat))) + 270).toFloat()
+            return (-1).toFloat()
+        }
+
+        fun decodePoly(encoded: String): List<LatLng>{
+            var poly: ArrayList<LatLng> = ArrayList()
+            var index = 0
+            val len = encoded.length
+            var lat = 0
+            var lng = 0
+            while (index < len)
+            {
+                var b:Int
+                var shift = 0
+                var result = 0
+                do
+                {
+                    b = (encoded.get(index.inc()) - 63).toInt()
+                    result = result or ((b and 0x1f) shl shift)
+                    shift += 5
+                }
+                while (b >= 0x20)
+                val dlat = (if ((result and 1) != 0) (result shr 1).inv() else (result shr 1))
+                lat += dlat
+                shift = 0
+                result = 0
+                do
+                {
+                    b = (encoded.get(index++) - 63).toInt()
+                    result = result or ((b and 0x1f) shl shift)
+                    shift += 5
+                }
+                while (b >= 0x20)
+                val dlng = (if ((result and 1) != 0) (result shr 1).inv() else (result shr 1))
+                lng += dlng
+                val p = LatLng(((lat.toDouble() / 1E5)),
+                    ((lng.toDouble() / 1E5)))
+                poly.add(p)
+            }
+            return poly
+        }
 
         fun buildName(firstname: String?, lastName: String?): String? {
             return StringBuilder(firstname).append(" ").append(lastName).toString()

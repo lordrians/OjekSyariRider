@@ -3,13 +3,14 @@ package com.example.ojeksyaririder.remote
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
+import retrofit2.adapter.rxjava2.RxJava2CallAdapterFactory
 import retrofit2.converter.gson.GsonConverterFactory
+import retrofit2.converter.scalars.ScalarsConverterFactory
 import java.util.concurrent.TimeUnit
 
 class RetrofitClient {
 
 
-    private lateinit var instance: Retrofit
 
     private fun provideOkHttpClient(): OkHttpClient{
         return OkHttpClient.Builder()
@@ -26,6 +27,16 @@ class RetrofitClient {
             .client(provideOkHttpClient())
             .build()
         return retrofit.create(IGoogleAPI::class.java)
+    }
+
+    companion object {
+        private lateinit var instance: Retrofit
+        fun getInstance(): Retrofit{
+            return Retrofit.Builder().baseUrl("https://maps.googleapis.com/")
+                .addConverterFactory(ScalarsConverterFactory.create())
+                .addCallAdapterFactory(RxJava2CallAdapterFactory.create())
+                .build()
+        }
     }
 
 }

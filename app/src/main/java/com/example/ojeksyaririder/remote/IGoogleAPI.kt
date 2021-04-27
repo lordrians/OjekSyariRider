@@ -13,7 +13,6 @@ interface IGoogleAPI {
         @Query("origin") from: String,
         @Query("destination") to: String,
         @Query("key") key: String
-
-    )
+    ): Observable<String>
 
 }

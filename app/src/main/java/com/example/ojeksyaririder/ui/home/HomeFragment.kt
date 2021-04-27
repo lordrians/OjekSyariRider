@@ -1,6 +1,7 @@
 package com.example.ojeksyaririder.ui.home
 
 import android.Manifest
+import android.animation.ValueAnimator
 import android.annotation.SuppressLint
 import android.content.pm.PackageManager
 import android.content.res.Resources
@@ -8,18 +9,19 @@ import android.location.Address
 import android.location.Geocoder
 import android.location.Location
 import android.os.Bundle
+import android.os.Handler
 import android.os.Looper
 import android.text.TextUtils
 import android.util.Log
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.view.animation.LinearInterpolator
 import android.widget.RelativeLayout
-import android.widget.TextView
 import android.widget.Toast
 import androidx.core.app.ActivityCompat
+import androidx.core.os.postDelayed
 import androidx.fragment.app.Fragment
-import androidx.lifecycle.Observer
 import androidx.lifecycle.ViewModelProvider
 import com.example.ojeksyaririder.R
 import com.example.ojeksyaririder.callback.IFirebaseDriverInfoListener
@@ -54,12 +56,13 @@ import io.reactivex.Observable
 import io.reactivex.android.schedulers.AndroidSchedulers
 import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.schedulers.Schedulers
+import org.json.JSONArray
+import org.json.JSONObject
 import java.io.IOException
 import java.util.*
-import kotlin.collections.HashSet
 
 class HomeFragment : Fragment(), OnMapReadyCallback, IFirebaseDriverInfoListener,
-    IFirebaseFailedListener {
+    IFirebaseFailedListener, Runnable {
 
     private lateinit var homeViewModel: HomeViewModel
     private lateinit var binding: FragmentHomeBinding
@@ -89,6 +92,17 @@ class HomeFragment : Fragment(), OnMapReadyCallback, IFirebaseDriverInfoListener
     private var compositeDisposable: CompositeDisposable = CompositeDisposable()
     private lateinit var iGoogleAPI: IGoogleAPI
 
+    //Moving Marker
+    private lateinit var polyLineList: List<LatLng>
+    private lateinit var handler: Handler
+    private var index: Int = 0
+    private var next: Int = 0
+    private var v: Float = 0F
+    private var lat: Double = 0.0
+    private var lng: Double = 0.0
+    private lateinit var start: LatLng
+    private lateinit var end: LatLng
+
     override fun onDestroyView() {
         fusedLocationProviderClient.removeLocationUpdates(locationCallback)
         super.onDestroyView()
@@ -117,6 +131,8 @@ class HomeFragment : Fragment(), OnMapReadyCallback, IFirebaseDriverInfoListener
     }
 
     private fun init() {
+
+        iGoogleAPI = RetrofitClient.getInstance().create(IGoogleAPI::class.java)
 
         iFirebaseDriverInfoListener = this
         iFirebaseFailedListener = this
@@ -319,7 +335,7 @@ class HomeFragment : Fragment(), OnMapReadyCallback, IFirebaseDriverInfoListener
                         }
 
                         override fun onKeyMoved(key: String?, location: GeoLocation?) {
-                            TODO("Not yet implemented")
+                            Log.d("KeyMoved", "KeyMoved")
                         }
 
                         override fun onKeyExited(key: String?) {
@@ -341,14 +357,14 @@ class HomeFragment : Fragment(), OnMapReadyCallback, IFirebaseDriverInfoListener
                             snapshot: DataSnapshot,
                             previousChildName: String?
                         ) {
-                            TODO("Not yet implemented")
+                            Log.d("MOVED", "MOVED")
                         }
 
                         override fun onChildChanged(
                             snapshot: DataSnapshot,
                             previousChildName: String?
                         ) {
-                            TODO("Not yet implemented")
+                            Log.d("MOVED", "MOVED")
                         }
 
                         override fun onChildAdded(
@@ -443,6 +459,7 @@ class HomeFragment : Fragment(), OnMapReadyCallback, IFirebaseDriverInfoListener
                             Common.markerList.get(driverGeoModel.getKey())!!.remove() // remove marker
                         }
                         Common.markerList.remove(driverGeoModel.getKey()) // Remove marker info from hash map
+                        Common.driverLocationSubscribe.remove(driverGeoModel.getKey()) // Remove Driver Information too
                         driverLocation.removeEventListener(this)
                     } else {
                         if (Common.markerList.get(driverGeoModel.getKey()) != null){
@@ -455,7 +472,7 @@ class HomeFragment : Fragment(), OnMapReadyCallback, IFirebaseDriverInfoListener
                                 var from = StringBuilder()
                                     .append(oldPosition?.geoQueryModel?.l?.get(0))
                                     .append(",")
-                                    .append(oldPosition.geoQueryModel?.l?.get(1))
+                                    .append(oldPosition?.geoQueryModel?.l?.get(1))
                                     .toString()
 
                                 var to = StringBuilder()
@@ -480,13 +497,81 @@ class HomeFragment : Fragment(), OnMapReadyCallback, IFirebaseDriverInfoListener
     private fun moveMarkerAnimation(key: String, animationModel: AnimationModel, currentMarker: Marker?, from: String, to: String) {
         if (!animationModel.isRun){
             //Request API
-            compositeDisposable.add(iGoogleAPI.getDirections("driving","less_driving",from, to, getString(R.string.google_api_key))
-                )
+            compositeDisposable.add(iGoogleAPI.getDirections("driving",
+                "less_driving",
+                from,to,
+                "AIzaSyDuf_r9eWrkfEZTF08NAAUHPA8gntaQeJQ")
+                .subscribeOn(Schedulers.io())
+                .observeOn(AndroidSchedulers.mainThread())
+                .subscribe { returnResult ->
+                    Log.d("API_RETURN", returnResult)
+
+                    try {
+                        //Parse JSON
+                        val jsonObject = JSONObject(returnResult)
+                        val jsonArray = jsonObject.getJSONArray("routes")
+                        for (i in 0..jsonArray.length() ){
+                            val route = jsonArray.getJSONObject(i)
+                            val poly = route.getJSONObject("overview_polyline")
+                            val polyLine = poly.getString("points")
+                            polyLineList = Common.decodePoly(polyLine)
+
+                        }
+
+                        //Moving
+                        handler = Handler()
+                        index = -1
+                        next = 1
+
+                        val runnable = Runnable {
+                            if (polyLineList.size > 1){
+                                if (index < polyLineList.size - 1){
+                                    index.inc()
+                                    next = index + 1
+                                    start = polyLineList.get(index)
+                                    end = polyLineList.get(next)
+                                }
+
+                                var valueAnimator = ValueAnimator.ofInt(0,1)
+                                    .setDuration(3000)
+                                valueAnimator.interpolator = LinearInterpolator()
+                                valueAnimator.addUpdateListener { value ->
+                                    v = value.animatedFraction
+                                    lat = v * end.latitude + ( 1 - v ) * start.latitude
+                                    lng = v * end.longitude + ( 1 - v ) * start.longitude
+                                    var newPos = LatLng(lat, lng)
+                                    currentMarker?.position = newPos
+                                    currentMarker?.setAnchor(0.5f, 0.5f)
+                                    currentMarker?.rotation = Common.getBearing(start, newPos)
+                                }
+
+                                valueAnimator.start()
+                                if (index < polyLineList.size - 2){
+                                    handler.postDelayed(this, 1500)
+                                }
+                                else if (index < polyLineList.size - 1){
+                                    animationModel.isRun = false
+                                    Common.driverLocationSubscribe.put(key, animationModel) // upload data
+                                }
+                            }
+                        }
+
+                        //Run Handler
+                        handler.postDelayed(runnable, 1500)
+
+                    } catch (e: Exception){
+                        view?.let { Snackbar.make(it, e.message.toString(), Snackbar.LENGTH_LONG).show() }
+                    }
+                })
 
         }
     }
 
     override fun onFirebaseLoadFailed(message: String) {
         view?.let { Snackbar.make(it, message, Snackbar.LENGTH_SHORT).show() }
+    }
+
+    override fun run() {
+        TODO("Not yet implemented")
     }
 }
