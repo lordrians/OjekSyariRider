@@ -25,9 +25,12 @@ import com.example.ojeksyaririder.R
 import com.example.ojeksyaririder.callback.IFirebaseDriverInfoListener
 import com.example.ojeksyaririder.callback.IFirebaseFailedListener
 import com.example.ojeksyaririder.databinding.FragmentHomeBinding
+import com.example.ojeksyaririder.model.AnimationModel
 import com.example.ojeksyaririder.model.DriverGeoModel
 import com.example.ojeksyaririder.model.DriverInfoModel
 import com.example.ojeksyaririder.model.GeoQueryModel
+import com.example.ojeksyaririder.remote.IGoogleAPI
+import com.example.ojeksyaririder.remote.RetrofitClient
 import com.example.ojeksyaririder.utils.Common
 import com.firebase.geofire.GeoFire
 import com.firebase.geofire.GeoLocation
@@ -38,10 +41,7 @@ import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.OnMapReadyCallback
 import com.google.android.gms.maps.SupportMapFragment
-import com.google.android.gms.maps.model.BitmapDescriptorFactory
-import com.google.android.gms.maps.model.LatLng
-import com.google.android.gms.maps.model.MapStyleOptions
-import com.google.android.gms.maps.model.MarkerOptions
+import com.google.android.gms.maps.model.*
 import com.google.android.material.snackbar.Snackbar
 import com.google.firebase.database.*
 import com.karumi.dexter.Dexter
@@ -52,6 +52,7 @@ import com.karumi.dexter.listener.PermissionRequest
 import com.karumi.dexter.listener.single.PermissionListener
 import io.reactivex.Observable
 import io.reactivex.android.schedulers.AndroidSchedulers
+import io.reactivex.disposables.CompositeDisposable
 import io.reactivex.schedulers.Schedulers
 import java.io.IOException
 import java.util.*
@@ -84,9 +85,18 @@ class HomeFragment : Fragment(), OnMapReadyCallback, IFirebaseDriverInfoListener
     private lateinit var iFirebaseDriverInfoListener: IFirebaseDriverInfoListener
     private lateinit var iFirebaseFailedListener: IFirebaseFailedListener
 
+    //
+    private var compositeDisposable: CompositeDisposable = CompositeDisposable()
+    private lateinit var iGoogleAPI: IGoogleAPI
+
     override fun onDestroyView() {
         fusedLocationProviderClient.removeLocationUpdates(locationCallback)
         super.onDestroyView()
+    }
+
+    override fun onStop() {
+        compositeDisposable.clear()
+        super.onStop()
     }
 
     override fun onCreateView(
@@ -434,11 +444,46 @@ class HomeFragment : Fragment(), OnMapReadyCallback, IFirebaseDriverInfoListener
                         }
                         Common.markerList.remove(driverGeoModel.getKey()) // Remove marker info from hash map
                         driverLocation.removeEventListener(this)
+                    } else {
+                        if (Common.markerList.get(driverGeoModel.getKey()) != null){
+                            val geoQueryModel = snapshot.getValue(GeoQueryModel::class.java)
+                            val animationModel = AnimationModel(false, geoQueryModel)
+                            if (Common.driverLocationSubscribe.get(driverGeoModel.getKey()) != null){
+                                var currentMarker: Marker? = Common.markerList.get(driverGeoModel.getKey())
+                                var oldPosition: AnimationModel? = Common.driverLocationSubscribe.get(driverGeoModel.getKey())
+
+                                var from = StringBuilder()
+                                    .append(oldPosition?.geoQueryModel?.l?.get(0))
+                                    .append(",")
+                                    .append(oldPosition.geoQueryModel?.l?.get(1))
+                                    .toString()
+
+                                var to = StringBuilder()
+                                    .append(animationModel.geoQueryModel?.l?.get(0))
+                                    .append(",")
+                                    .append(animationModel.geoQueryModel?.l?.get(1))
+                                    .toString()
+
+                                moveMarkerAnimation(driverGeoModel.getKey(), animationModel, currentMarker, from, to)
+                            } else {
+                                //First Location init
+                                Common.driverLocationSubscribe.put(driverGeoModel.getKey(), animationModel)
+                            }
+                        }
                     }
                 }
             })
         }
 
+    }
+
+    private fun moveMarkerAnimation(key: String, animationModel: AnimationModel, currentMarker: Marker?, from: String, to: String) {
+        if (!animationModel.isRun){
+            //Request API
+            compositeDisposable.add(iGoogleAPI.getDirections("driving","less_driving",from, to, getString(R.string.google_api_key))
+                )
+
+        }
     }
 
     override fun onFirebaseLoadFailed(message: String) {

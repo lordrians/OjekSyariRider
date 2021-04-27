@@ -11,6 +11,7 @@ import android.graphics.Color
 import android.os.Build
 import androidx.core.app.NotificationCompat
 import com.example.ojeksyaririder.R
+import com.example.ojeksyaririder.model.AnimationModel
 import com.example.ojeksyaririder.model.DriverGeoModel
 import com.example.ojeksyaririder.model.RiderModel
 import com.google.android.gms.maps.model.Marker
@@ -25,6 +26,7 @@ class Common {
 
         var driversFound: HashSet<DriverGeoModel> = HashSet()
         var markerList: HashMap<String, Marker> = HashMap()
+        var driverLocationSubscribe: HashMap<String, AnimationModel> = HashMap()
 
         lateinit var currentRider: RiderModel
 
